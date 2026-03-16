@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR IT R050 - Lesson Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --ocr-purple: #6a1b9a;
+            --ocr-navy: #1a237e;
+            --ocr-accent: #f3e5f5;
+            --ocr-green: #2e7d32;
+        }
+        .bg-ocr-purple { background-color: var(--ocr-purple); }
+        .text-ocr-purple { color: var(--ocr-purple); }
+        .bg-ocr-navy { background-color: var(--ocr-navy); }
+        .text-ocr-navy { color: var(--ocr-navy); }
+        .border-ocr-purple { border-color: var(--ocr-purple); }
+        .bg-ocr-green { background-color: var(--ocr-green); }
+        .text-ocr-green { color: var(--ocr-green); }
+        
+        .lesson-card:hover {
+            transform: translateY(-4px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .answer-panel {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.4s ease-in-out;
+        }
+        .answer-panel.open {
+            max-height: 2000px;
+            opacity: 1;
+            padding-top: 1rem;
+        }
+
+        .img-preview-container img {
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 1rem;
+            margin-top: 1rem;
+        }
+
+        /* Login Modal Overlay */
+        #login-overlay {
+            background-color: rgba(26, 35, 126, 0.95);
+            backdrop-filter: blur(8px);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            /* Hide the answers strictly on print */
+            .answer-panel { display: none !important; }
+            /* Ensure boxes have solid borders when printed so students know where to write */
+            .print-box { 
+                border: 2px solid #ccc !important; 
+                background-color: #fff !important; 
+                box-shadow: none !important; 
+            }
+            body {
+                background-color: white !important;
+            }
+            section {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800 font-sans leading-relaxed">
+
+    <!-- Navigation -->
+    <nav class="bg-ocr-navy text-white p-4 shadow-xl no-print sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <!-- Brand/Logo -->
+            <div onclick="showView('student')" class="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition group">
+                <div class="bg-white p-2 rounded-lg group-hover:scale-110 transition">
+                    <i class="fas fa-microchip text-ocr-navy text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight leading-none">OCR Cambridge National <span class="text-purple-300">IT</span></h1>
+                    <p class="text-xs opacity-75">R050: IT in the digital world</p>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="flex space-x-1 md:space-x-4">
+                <button onclick="showView('student')" class="flex items-center space-x-2 hover:text-purple-300 transition px-3 py-1.5 rounded-xl hover:bg-white/10">
+                    <i class="fas fa-home"></i>
+                    <span class="hidden md:inline">Home</span>
+                </button>
+                <button onclick="showView('homework')" class="flex items-center space-x-2 hover:text-purple-300 transition px-3 py-1.5 rounded-xl hover:bg-white/10">
+                    <i class="fas fa-house-laptop"></i>
+                    <span class="hidden md:inline">Homework Hub</span>
+                </button>
+                <button onclick="showView('teacher')" class="flex items-center space-x-2 hover:text-purple-300 transition px-3 py-1.5 rounded-xl hover:bg-white/10">
+                    <i class="fas fa-lock"></i>
+                    <span class="hidden md:inline">Teacher Panel</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto py-8 px-4 max-w-6xl">
+
+        <!-- STUDENT PORTAL VIEW -->
+        <div id="view-student" class="view">
+            <div id="lesson-selection">
+                <div class="mb-10 text-center md:text-left">
+                    <h2 class="text-4xl font-extrabold text-ocr-navy mb-3">Specification Mastery</h2>
+                    <p class="text-gray-600 max-w-2xl">Master the R050 unit through structured lessons. Terminology and Mark Schemes verified against OCR standards.</p>
+                </div>
+                
+                <!-- PROGRESS BAR COMPONENT -->
+                <div class="mb-10 bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 no-print">
+                    <div class="flex flex-col md:flex-row md:justify-between md:items-end mb-4 gap-2">
+                        <div>
+                            <h3 class="text-xl font-extrabold text-ocr-navy"><i class="fas fa-chart-line text-ocr-purple mr-2"></i>Overall Course Progress</h3>
+                            <p class="text-sm text-gray-500 font-medium">Complete all tasks, Do Nows, and Homework in a lesson to mark it as completed.</p>
+                        </div>
+                        <span id="progress-text" class="text-4xl font-black text-ocr-purple">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-6 border border-slate-200 overflow-hidden">
+                        <div id="progress-bar-fill" class="bg-gradient-to-r from-ocr-purple to-purple-400 h-6 rounded-full transition-all duration-1000 ease-out shadow-inner" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div id="lesson-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            </div>
+
+            <div id="active-lesson" class="hidden">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 no-print">
+                    <button onclick="showView('student')" class="bg-white border border-gray-200 px-4 py-2 rounded-xl text-ocr-navy hover:bg-gray-50 flex items-center shadow-sm transition font-semibold">
+                        <i class="fas fa-chevron-left mr-2"></i> Return to Library
+                    </button>
+                    <div class="flex space-x-3 w-full md:w-auto">
+                        <button id="btn-save-lesson" class="flex-1 bg-ocr-purple text-white px-4 py-2 rounded-xl hover:bg-purple-800 shadow-sm transition font-bold flex items-center justify-center">
+                            <i class="fas fa-save mr-2"></i> Save Work
+                        </button>
+                        <button onclick="window.print()" class="flex-1 bg-white border border-gray-200 px-4 py-2 rounded-xl text-gray-700 hover:bg-gray-50 shadow-sm transition flex items-center justify-center">
+                            <i class="fas fa-print mr-2"></i> Print Worksheet
+                        </button>
+                        <button onclick="toggleAllAnswers()" id="btn-toggle-answers" class="flex-1 bg-ocr-green text-white px-4 py-2 rounded-xl hover:opacity-90 shadow-md transition font-bold flex items-center justify-center">
+                            <i class="fas fa-lightbulb mr-2"></i> Reveal Mark Scheme
+                        </button>
+                    </div>
+                </div>
+                <div id="lesson-content"></div>
+            </div>
+        </div>
+
+        <!-- HOMEWORK HUB VIEW -->
+        <div id="view-homework" class="view hidden">
+            <div class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h2 class="text-4xl font-extrabold text-ocr-navy mb-3">Home Learning Hub</h2>
+                    <p class="text-gray-600 max-w-2xl">35 Weeks of independent tasks mapped to the R050 specification. Complete these weekly to ensure you are exam-ready.</p>
+                </div>
+                <button onclick="saveHomeworkProgress()" class="bg-ocr-purple text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:scale-105 transition no-print flex items-center whitespace-nowrap">
+                    <i class="fas fa-save mr-2"></i> Save All Homework
+                </button>
+            </div>
+            <div id="homework-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+
+        <!-- TEACHER AUTH SECTION -->
+        <div id="login-overlay" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
+            <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-md border border-purple-100">
+                <div class="text-center mb-8">
+                    <div class="bg-ocr-navy text-white w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <i class="fas fa-user-shield text-2xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-black text-ocr-navy">Teacher Login</h2>
+                    <p class="text-gray-500 text-sm">Enter credentials to manage the curriculum</p>
+                </div>
+                <form onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-400 mb-1 ml-2">Username</label>
+                        <input type="text" id="login-user" required class="w-full border-2 border-slate-50 p-4 rounded-2xl outline-none focus:border-ocr-purple transition bg-slate-50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-400 mb-1 ml-2">Password</label>
+                        <input type="password" id="login-pass" required class="w-full border-2 border-slate-50 p-4 rounded-2xl outline-none focus:border-ocr-purple transition bg-slate-50">
+                    </div>
+                    <div id="login-error" class="hidden text-red-500 text-xs font-bold text-center italic">Incorrect username or password.</div>
+                    <button type="submit" class="w-full bg-ocr-purple text-white p-4 rounded-2xl font-black shadow-lg hover:scale-105 transition mt-4">Access Dashboard</button>
+                    <button type="button" onclick="closeLogin()" class="w-full text-gray-400 text-xs font-bold mt-2 hover:text-gray-600 transition">Cancel</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- TEACHER DASHBOARD VIEW -->
+        <div id="view-teacher" class="view hidden">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-3xl font-bold text-ocr-navy">Curriculum Management</h2>
+                <button onclick="handleLogout()" class="bg-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-50 hover:text-red-500 transition">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                </button>
+            </div>
+            
+            <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+                <form id="lesson-form" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <select id="f-topic" class="border p-3 rounded-xl bg-gray-50">
+                            <option>Topic Area 1: Design Tools</option>
+                            <option>Topic Area 2: HCI in Everyday Life</option>
+                            <option>Topic Area 3: Data and Testing</option>
+                            <option>Topic Area 4: Cyber-security and Legislation</option>
+                            <option>Topic Area 5: Digital Communications</option>
+                            <option>Topic Area 6: Internet of Everything (IoE)</option>
+                        </select>
+                        <input type="text" id="f-title" placeholder="Lesson Title" class="border p-3 rounded-xl">
+                    </div>
+                    <input type="url" id="f-img" placeholder="Lesson Image URL (e.g., https://images.unsplash.com/...)" class="w-full border p-3 rounded-xl bg-gray-50">
+                    
+                    <div class="bg-slate-50 p-6 rounded-2xl space-y-4">
+                        <p class="font-bold text-ocr-purple uppercase text-xs">Do Now Tasks</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <input type="text" id="f-dn1" placeholder="Q1 (Current Topic)" class="border p-2 rounded-lg">
+                            <input type="text" id="f-dna1" placeholder="A1" class="border p-2 rounded-lg bg-white italic">
+                            <input type="text" id="f-dn2" placeholder="Q2 (Current Topic)" class="border p-2 rounded-lg">
+                            <input type="text" id="f-dna2" placeholder="A2" class="border p-2 rounded-lg bg-white italic">
+                            <input type="text" id="f-dn3" placeholder="Q3 (Previous Lesson)" class="border p-2 rounded-lg">
+                            <input type="text" id="f-dna3" placeholder="A3" class="border p-2 rounded-lg bg-white italic">
+                            <input type="text" id="f-dn4" placeholder="Q4 (Previous Lesson)" class="border p-2 rounded-lg">
+                            <input type="text" id="f-dna4" placeholder="A4" class="border p-2 rounded-lg bg-white italic">
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <textarea id="f-task1" placeholder="Task 1: Activate Prompt/Question" class="w-full border p-3 rounded-xl"></textarea>
+                        <textarea id="f-task1a" placeholder="Task 1: Expected Answer/Summary" class="w-full border p-2 rounded-xl bg-green-50 italic text-sm"></textarea>
+                        <textarea id="f-task2" placeholder="Task 2: Apply Scenario" class="w-full border p-3 rounded-xl"></textarea>
+                        <textarea id="f-task2a" placeholder="Task 2: Model Answer" class="w-full border p-2 rounded-xl bg-green-50 italic text-sm"></textarea>
+                        <textarea id="f-exam" placeholder="Task 3: Exam Practice" class="w-full border p-3 rounded-xl"></textarea>
+                        <textarea id="f-exama" placeholder="Task 3: Mark Scheme" class="w-full border p-2 rounded-xl bg-green-50 italic text-sm"></textarea>
+                        <textarea id="f-hw" placeholder="Homework Task" class="w-full border p-3 rounded-xl"></textarea>
+                        <textarea id="f-hwa" placeholder="Homework Mark Scheme" class="w-full border p-2 rounded-xl bg-green-50 italic text-sm"></textarea>
+                    </div>
+                    <button type="submit" class="w-full bg-ocr-purple text-white p-4 rounded-xl font-bold hover:opacity-90 transition">Publish Lesson</button>
+                </form>
+            </div>
+            <div id="manage-grid" class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3 pb-20"></div>
+        </div>
+    </main>
+
+    <script>
+        // Images mapped to topics for generic and custom lessons
+        const TA_IMAGES = {
+            1: "https://images.unsplash.com/photo-1586717791821-3f44a563fa4c?auto=format&fit=crop&w=800&q=80", 
+            2: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80", 
+            3: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800&q=80", 
+            4: "https://images.unsplash.com/photo-1510511459019-5efa3206d9a4?auto=format&fit=crop&w=800&q=80", 
+            5: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=800&q=80", 
+            6: "https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&w=800&q=80"  
+        };
+
+        const defaultLessons = [
+            // TA1: Design Tools (Weeks 1-6)
+            { id: 'w1', topic: 'Topic Area 1: Design Tools', title: 'Flowcharts & Logic', img: TA_IMAGES[1],
+              task1: "Imagine you are designing a simple 'login' screen for a new app. Before writing any code, you need to map out the steps.\n\nQuestion: What is a flowchart, and why would you use one here instead of just writing out a list of instructions?",
+              task1a: "A flowchart is a visual diagram of a process. It is better than a list because it easily shows different logical paths (like what happens if the user gets the password right vs wrong) using shapes like decision diamonds.",
+              hw: 'Draw a flowchart for the process of withdrawing £20 from an ATM. Use correct symbols for start, process, and decision.', hwa: 'Should include: Start (Terminator) -> Insert Card -> PIN Check (Decision) -> Amount Check (Decision) -> Dispense Cash -> End.' },
+            { id: 'w2', topic: 'Topic Area 1: Design Tools', title: 'Mind Maps for Ideas', img: TA_IMAGES[1],
+              task1: "You've been asked to design a brand new video game, but your head is full of random ideas.\n\nQuestion: How can a Mind Map help you organize your thoughts? Name the parts of a Mind Map you would use.",
+              task1a: "It helps group related ideas together visually. You start with a 'central node' (the game title), add 'sub-nodes' (graphics, sound, levels), and use 'branches' to connect related thoughts.",
+              hw: 'Create a mind map brainstorming features for a new "School Management" mobile app.', hwa: 'Branches should include: Homework, Attendance, Timetable, Canteen Menu, and Messaging.' },
+            { id: 'w3', topic: 'Topic Area 1: Design Tools', title: 'Storyboards & Sequences', img: TA_IMAGES[1],
+              task1: "Think about a YouTube ad or a loading screen on a game. Before it is actually animated, it is drawn out on a storyboard.\n\nQuestion: What 3 pieces of essential information must you include on a single storyboard frame?",
+              task1a: "1. A rough visual sketch of the scene.\n2. The scene number or timings (e.g., 0:00 - 0:05).\n3. Notes on what is happening (e.g., audio playing, camera movement, or user clicks).",
+              hw: 'Create a 3-frame storyboard showing the user interaction for a "Welcome" animation on a tablet.', hwa: 'Frame 1: Logo fades in. Frame 2: User clicks start. Frame 3: Menu screen appears.' },
+            { id: 'w4', topic: 'Topic Area 1: Design Tools', title: 'Wireframes & Layout', img: TA_IMAGES[1],
+              task1: "You are designing the layout for a new social media profile page.\n\nQuestion: What is a wireframe, and why should you avoid spending hours picking the perfect colors or fonts at this stage?",
+              task1a: "A wireframe is a basic, black-and-white blueprint of a screen's layout. You avoid colors and fonts so the client focuses purely on structure (where buttons and images go) rather than getting distracted by the visual style.",
+              hw: 'Sketch a wireframe for a smartphone "Settings" screen. Label the structural elements.', hwa: 'Structure should include: Header, back button, toggles for Wi-Fi/Bluetooth, and a footer menu.' },
+            { id: 'w5', topic: 'Topic Area 1: Design Tools', title: 'Visualisation Diagrams', img: TA_IMAGES[1],
+              task1: "A client wants to see what their new app will actually look like before it is coded. You show them a visualisation diagram.\n\nQuestion: What exactly does a visualisation diagram show that a standard wireframe does not?",
+              task1a: "A visualisation diagram shows the final visual aesthetic. It includes exact color schemes, specific font choices, real images, and logos, showing the final 'look and feel' of the product.",
+              hw: 'Design a visualisation diagram for a new video game cover. Annotate the fonts and colors used.', hwa: 'Annotations should link design choices to target audience (e.g. bold colors for younger users).' },
+            { id: 'w6', topic: 'Topic Area 1: Design Tools', title: 'Selecting Design Tools', img: TA_IMAGES[1],
+              task1: "You are planning an online store.\n\nQuestion: If you needed to plan what happens when a user clicks 'Buy Now' and their card is declined, which design tool would you use? What if you wanted to plan where the 'Buy Now' button sits on the screen?",
+              task1a: "Use a Flowchart to plan the logic (if card accepted -> success screen; if declined -> error screen). Use a Wireframe to plan the layout (where the 'Buy Now' button physically sits on the page).",
+              hw: 'Explain why a designer would use a Wireframe instead of a Flowchart when planning a GUI.', hwa: 'Wireframes show visual layout/navigation, whereas Flowcharts show logical processes/decision paths.' },
+
+            // TA2: HCI (Weeks 7-11)
+            { id: 'w7', topic: 'Topic Area 2: HCI in Everyday Life', title: 'User Interaction Methods', img: TA_IMAGES[2],
+              task1: "Think about using an ATM to get cash versus asking Siri to play a song.\n\nQuestion: Name 3 different ways humans can interact with computers (HCI) and give a quick real-world example of each.",
+              task1a: "1. Voice interaction (e.g., Siri or Alexa).\n2. Gesture interaction (e.g., swiping on a smartphone or using a Wii remote).\n3. Touch interaction (e.g., tapping an ATM or fast-food kiosk).",
+              hw: 'Identify 3 different user interaction methods and give a real-world example of each.', hwa: '1. Voice (Siri/Alexa). 2. Gesture (Smartphone swipe). 3. Touch (ATM/Kiosk).' },
+            { id: 'w8', topic: 'Topic Area 2: HCI in Everyday Life', title: 'Hardware Considerations', img: TA_IMAGES[2],
+              task1: "You are designing an app for a tiny smartwatch.\n\nQuestion: How does the small screen size change how you design the menus compared to a large desktop monitor?",
+              task1a: "Smartwatches require huge buttons, hidden nested menus, and very little text because there is limited space. Desktops can display complex menus, lots of text, and multiple windows all at once.",
+              hw: 'Describe how screen size impacts the design of an interface for a Smartwatch vs a Desktop PC.', hwa: 'Smartwatch: Small screen requires large icons/voice control. PC: Large screen allows multiple windows/complex menus.' },
+            { id: 'w9', topic: 'Topic Area 2: HCI in Everyday Life', title: 'Interface Performance', img: TA_IMAGES[2],
+              task1: "Have you ever played a game or used an app that keeps lagging or freezing?\n\nQuestion: How does a device's processing power (CPU) or Memory (RAM) affect how an interface should be designed?",
+              task1a: "If a device has low CPU or RAM, the designer must avoid heavy animations, transparent effects, or 3D graphics, otherwise the interface will lag, stutter, and frustrate the user.",
+              hw: 'Explain how low processing power (CPU) or RAM impacts a user’s experience with an HCI.', hwa: 'Causes input lag, slow screen transitions, and stuttering, leading to user frustration/errors.' },
+            { id: 'w10', topic: 'Topic Area 2: HCI in Everyday Life', title: 'Inclusive Design & Accessibility', img: TA_IMAGES[2],
+              task1: "Imagine a user is visually impaired and struggles to read small, light-colored text on a screen.\n\nQuestion: Name two specific accessibility features you could add to your interface to help them.",
+              task1a: "1. A high contrast color mode (like bright yellow text on a black background).\n2. A text-to-speech screen reader or a tool to drastically increase font sizes.",
+              hw: 'List 3 features an interface can include to support users with visual impairments.', hwa: '1. Screen reader compatibility. 2. High contrast modes. 3. Adjustable font sizing.' },
+            { id: 'w11', topic: 'Topic Area 2: HCI in Everyday Life', title: 'Impact of Operating Systems', img: TA_IMAGES[2],
+              task1: "If you switch from an Apple iPhone to a Windows PC, the way you close an app is totally different.\n\nQuestion: What is an Operating System, and how does it dictate UI design rules?",
+              task1a: "The OS (like iOS or Windows) manages the device. It sets strict layout rules (like where the 'X' button goes, or what a 'swipe up' gesture does) so users get a consistent, familiar experience across all apps.",
+              hw: 'How does a mobile OS (like iOS/Android) differ from a Desktop OS (Windows) in terms of user navigation?', hwa: 'Mobile: Uses gestures/touch. Desktop: Uses mouse/cursor and complex folder structures.' },
+
+            // TA3: Data & Testing (Weeks 12-17)
+            { id: 'w12', topic: 'Topic Area 3: Data and Testing', title: 'Data vs Information', img: TA_IMAGES[3],
+              task1: "If I just say the numbers '12, 14, 15', that is just raw data. It doesn't mean anything on its own.\n\nQuestion: How do you turn that raw data into 'Information'? Give an example using those numbers.",
+              task1a: "You turn data into information by adding context or meaning. For example: '12, 14, and 15 are the ages of the students in the school coding club.'",
+              hw: 'Give an example of raw data and explain how it becomes useful information.', hwa: 'Data: 10, 15, 20. Information: These are temperature readings showing a warming trend over 3 hours.' },
+            { id: 'w13', topic: 'Topic Area 3: Data and Testing', title: 'Data Collection Methods', img: TA_IMAGES[3],
+              task1: "If a supermarket wants to know exactly how many people walk through their doors every day...\n\nQuestion: Why is using an automatic door sensor better than paying an employee to stand there with a clicker?",
+              task1a: "Automatic sensors are cheaper long-term, work 24/7 without needing breaks, and do not make human counting errors (they are more accurate).",
+              hw: 'Compare the use of Sensors vs Questionnaires for collecting weather data.', hwa: 'Sensors: Automatic, 24/7, high accuracy. Questionnaires: Manual, human-led, subjective/opinion-based.' },
+            { id: 'w14', topic: 'Topic Area 3: Data and Testing', title: 'Primary vs Secondary Data', img: TA_IMAGES[3],
+              task1: "You are doing a school project on teenage gaming habits.\n\nQuestion: What is the difference between Primary Data (like a survey you made) and Secondary Data (like an article you found online)?",
+              task1a: "Primary data is original data collected by you, firsthand, specifically for your project. Secondary data was collected by someone else in the past for a different reason.",
+              hw: 'Define Primary and Secondary data and provide one source for each.', hwa: 'Primary: Collected firsthand (Interview). Secondary: Collected by others (Internet search/Books).' },
+            { id: 'w15', topic: 'Topic Area 3: Data and Testing', title: 'Physical vs Logical Storage', img: TA_IMAGES[3],
+              task1: "Lots of people save their photos to 'The Cloud' (Logical Storage) instead of a USB stick (Physical Storage).\n\nQuestion: What is the biggest risk of relying entirely on Cloud storage?",
+              task1a: "If your internet connection goes down, or the cloud provider's servers crash or get hacked, you completely lose access to your files.",
+              hw: 'State one advantage and one disadvantage of Cloud (Logical) storage.', hwa: 'Advantage: Accessible anywhere. Disadvantage: Requires internet connection; potential security risks.' },
+            { id: 'w16', topic: 'Topic Area 3: Data and Testing', title: 'Validation vs Verification', img: TA_IMAGES[3],
+              task1: "When you create a new password, the website automatically checks if it has 8 characters.\n\nQuestion: Is this Validation or Verification? Explain the difference between the two terms.",
+              task1a: "It is Validation (a computer check to see if data follows the rules/is sensible). Verification is a human check to see if data is actually accurate/true (like forcing you to type the password twice to check for typos).",
+              hw: 'Explain why a system uses "Range Checks" during data entry.', hwa: 'Validation: To ensure data entered is sensible/within set limits (e.g. Month 1-12).' },
+            { id: 'w17', topic: 'Topic Area 3: Data and Testing', title: 'Technical Testing', img: TA_IMAGES[3],
+              task1: "When building a box that asks for your age (set to accept between 11 and 16)...\n\nQuestion: Why is it important for developers to test it with 'Invalid Data' like typing the word 'Hello' instead of a number?",
+              task1a: "To make sure the system handles the error properly (e.g., by showing a red warning message), rather than crashing the whole app when it doesn't understand the input.",
+              hw: 'Define "Invalid Data" testing and why it is critical for system robustness.', hwa: 'Testing with data that should be rejected (e.g. text in a date field) to ensure the system doesn\'t crash.' },
+
+            // TA4: Cyber-security & Legislation (Weeks 18-25)
+            { id: 'w18', topic: 'Topic Area 4: Cyber-security and Legislation', title: 'Malware Threats', img: TA_IMAGES[4],
+              task1: "You download a 'free' game online, but it secretly installs software that steals your passwords.\n\nQuestion: What specific type of malware is this, and how is it different from Ransomware?",
+              task1a: "That is a Trojan (malware hidden inside seemingly good software). Ransomware is different because it locks and encrypts your files, demanding you pay money to unlock them.",
+              hw: 'Describe the difference between a Virus and a Trojan.', hwa: 'Virus: Self-replicating code that spreads. Trojan: Malware disguised as legitimate software.' },
+            { id: 'w19', topic: 'Topic Area 4: Cyber-security and Legislation', title: 'Social Engineering', img: TA_IMAGES[4],
+              task1: "You get a panic-inducing email claiming your Netflix account is locked and you must click a link NOW.\n\nQuestion: What is this type of social engineering attack called, and what is the attacker's main goal?",
+              task1a: "This is called Phishing. The attacker's goal is to trick you into panicking and entering your real password or bank details on their fake website so they can steal it.",
+              hw: 'What is Phishing? List 2 things to look for in a suspicious email.', hwa: 'Phishing: Fraudulent emails to steal data. Look for: Poor spelling and sense of urgency.' },
+            { id: 'w20', topic: 'Topic Area 4: Cyber-security and Legislation', title: 'System Vulnerabilities', img: TA_IMAGES[4],
+              task1: "Your phone or console constantly bugs you to install 'Software Updates' or 'Patches'.\n\nQuestion: Why are these patches so important? What happens to your device if you ignore them?",
+              task1a: "Updates fix known, secret security holes in the code. If you ignore them, hackers can easily use those unpatched holes to break into your device.",
+              hw: 'Explain why unpatched software (missing updates) is a cyber-security risk.', hwa: 'Updates often fix security "holes" (vulnerabilities) that hackers use to gain access.' },
+            { id: 'w21', topic: 'Topic Area 4: Cyber-security and Legislation', title: 'Physical Security Measures', img: TA_IMAGES[4],
+              task1: "Imagine you are in charge of protecting a room full of highly expensive school servers.\n\nQuestion: Name two 'Physical' Security measures you would install to stop people getting in.",
+              task1a: "1. Biometric locks on the doors (fingerprint or retina scanners).\n2. CCTV cameras monitoring the entrance.\n3. Swipe card access or heavy-duty physical locks.",
+              hw: 'Identify 3 physical security measures a data center would use to protect hardware.', hwa: '1. Biometric locks. 2. CCTV. 3. Security guards/fencing.' },
+            { id: 'w22', topic: 'Topic Area 4: Cyber-security and Legislation', title: 'Logical Security Measures', img: TA_IMAGES[4],
+              task1: "Logging into an app on a new phone usually requires your password AND a 6-digit code sent to your mobile.\n\nQuestion: What is this called, and why is it so much better than just using a password?",
+              task1a: "This is Two-Factor Authentication (2FA). It is better because even if a hacker guesses or steals your password, they still cannot get in without physically holding your mobile phone.",
+              hw: 'Describe how Two-Factor Authentication (2FA) improves login security.', hwa: 'Requires a second form of ID (code) beyond the password, making stolen passwords useless alone.' },
+            { id: 'w23', topic: 'Topic Area 4: Cyber-security and Legislation', title: 'Data Protection Act 2018', img: TA_IMAGES[4],
+              task1: "Under the Data Protection Act (DPA / GDPR), a company cannot just keep your personal data forever.\n\nQuestion: Name 2 strict rules companies must follow when handling your private data.",
+              task1a: "1. They must keep it securely protected from hackers.\n2. They must delete it when it is no longer needed.\n3. They cannot share it without your clear permission.",
+              hw: 'State 3 requirements of the DPA 2018 for organizations storing personal data.', hwa: '1. Keep data secure. 2. Only keep for as long as needed. 3. Use data fairly/lawfully.' },
+            { id: 'w24', topic: 'Topic Area 4: Cyber-security and Legislation', title: 'Computer Misuse Act 1990', img: TA_IMAGES[4],
+              task1: "A student guesses a teacher's password and logs in to look at the school's private exam files.\n\nQuestion: Which UK law have they just broken, and what is the specific name of the offence?",
+              task1a: "They have broken the Computer Misuse Act (1990). The specific offence is 'Unauthorised access to computer material'.",
+              hw: 'What are the 3 main offenses under the Computer Misuse Act?', hwa: '1. Unauthorised access. 2. Access with intent to commit crime. 3. Unauthorised modification.' },
+            { id: 'w25', topic: 'Topic Area 4: Cyber-security and Legislation', title: 'Other IT Legislation', img: TA_IMAGES[4],
+              task1: "You find a really cool photo online and use it on your own business website to make money, without asking the photographer.\n\nQuestion: Which law does this break, and what does the law protect?",
+              task1a: "This breaks the Copyright, Designs and Patents Act. This law protects 'intellectual property'—meaning you cannot use someone else's creative work (photos, music, code) without permission.",
+              hw: 'How does the Copyright Act protect software developers?', hwa: 'Prevents others from copying or distributing their code/software without permission.' },
+
+            // TA5: Digital Communications (Weeks 26-30)
+            { id: 'w26', topic: 'Topic Area 5: Digital Communications', title: 'Comms Types (VoIP & Video)', img: TA_IMAGES[5],
+              task1: "During lockdown, schools and businesses used software like MS Teams or Zoom instead of normal phone calls.\n\nQuestion: What does VoIP stand for, and why is it so useful for businesses?",
+              task1a: "VoIP stands for Voice over Internet Protocol. It's highly useful because it is usually free over Wi-Fi, supports multi-person video, and allows users to share their screen.",
+              hw: 'Identify 2 advantages of using VoIP for business meetings.', hwa: '1. Cost-effective (free over internet). 2. Supports video and screen sharing.' },
+            { id: 'w27', topic: 'Topic Area 5: Digital Communications', title: 'Collaborative Tools', img: TA_IMAGES[5],
+              task1: "You and 3 friends are writing a group project.\n\nQuestion: Why is using a Cloud Collaborative Tool (like Google Docs) much better than just emailing a Microsoft Word document back and forth?",
+              task1a: "With a cloud tool, you can all edit the exact same document live at the exact same time. It prevents the confusion of having multiple different versions saved on different computers.",
+              hw: 'Explain how cloud-based collaboration tools improve team productivity.', hwa: 'Allows multiple users to edit the same document simultaneously from different locations.' },
+            { id: 'w28', topic: 'Topic Area 5: Digital Communications', title: 'Distribution Channels', img: TA_IMAGES[5],
+              task1: "A famous YouTuber wants to promote their new merchandise.\n\nQuestion: Name 3 different digital 'Distribution Channels' they could use to get their message out to fans.",
+              task1a: "1. Social media posts (Twitter/Instagram/TikTok).\n2. A link pinned in their video descriptions.\n3. An email newsletter sent directly to subscribers.",
+              hw: 'List 3 distribution channels for a digital marketing campaign.', hwa: '1. Email. 2. Social Media. 3. Company Website/App.' },
+            { id: 'w29', topic: 'Topic Area 5: Digital Communications', title: 'Audience Demographics', img: TA_IMAGES[5],
+              task1: "You are designing a digital poster aimed at 6-year-olds, and another aimed at 40-year-old business people.\n\nQuestion: How should the design differ for the kids' poster?",
+              task1a: "For the kids' poster, you must use bright/engaging colors, large and simple fonts, very short words, and lots of pictures or cartoon characters.",
+              hw: 'How would you adapt a digital newsletter for a target audience of children aged 5-8?', hwa: 'Use bright colors, large simple fonts, many images, and minimal complex text.' },
+            { id: 'w30', topic: 'Topic Area 5: Digital Communications', title: 'Communication Suitability', img: TA_IMAGES[5],
+              task1: "Your bank needs to send you an urgent alert that someone just tried to spend £500 on your card.\n\nQuestion: Why is an SMS (Text Message) a much better channel for this than an Email?",
+              task1a: "People usually get push notifications for texts and check them almost instantly. Emails can often get lost in spam folders or sit unread in an inbox for hours.",
+              hw: 'Why might a company choose Instant Messaging over Email for internal staff?', hwa: 'Speed of response and better for quick, informal "check-ins" or collaboration.' },
+
+            // TA6: Internet of Everything (Weeks 31-35)
+            { id: 'w31', topic: 'Topic Area 6: Internet of Everything (IoE)', title: 'The 4 Pillars of IoE', img: TA_IMAGES[6],
+              task1: "The 'Internet of Everything' (IoE) connects 4 main pillars: People, Process, Data, and Things.\n\nQuestion: What exactly are the 'Things' in this list?",
+              task1a: "The 'Things' are physical objects that have sensors and internet chips built into them—like smart fridges, smart watches, or smart traffic lights.",
+              hw: 'List the 4 pillars of the IoE and define the "Things" pillar.', hwa: 'People, Process, Data, Things. Things: Physical devices/sensors connected to the internet.' },
+            { id: 'w32', topic: 'Topic Area 6: Internet of Everything (IoE)', title: 'Connectivity in IoE', img: TA_IMAGES[6],
+              task1: "In a Smart Home, your heating turns on automatically because your phone's GPS told the house you were 5 minutes away.\n\nQuestion: Is this an example of Human-to-Device or Machine-to-Machine (M2M) communication?",
+              task1a: "It is Machine-to-Machine (M2M). The phone's GPS and the smart heating system talked to each other over the internet and made a decision without you pressing any buttons.",
+              hw: 'Describe the difference between Device-to-Device (M2M) and Device-to-Human communication.', hwa: 'M2M: Smart meter talking to the grid. D2H: Smart light notifying a user via their phone.' },
+            { id: 'w33', topic: 'Topic Area 6: Internet of Everything (IoE)', title: 'IoE in Smart Cities', img: TA_IMAGES[6],
+              task1: "Councils spend a lot of fuel sending garbage trucks to empty bins in the park that are only half full.\n\nQuestion: How could the Internet of Everything solve this problem?",
+              task1a: "Bins could have weight sensors inside. When a bin hits 90% full, it automatically sends a data alert to the council app, so a truck only drives out when it's completely necessary.",
+              hw: 'Give two examples of how IoE improves urban life (Smart Cities).', hwa: '1. Smart traffic lights reducing jams. 2. Smart waste bins notifying when full.' },
+            { id: 'w34', topic: 'Topic Area 6: Internet of Everything (IoE)', title: 'IoE in Health & Agriculture', img: TA_IMAGES[6],
+              task1: "A patient with a bad heart condition wears a smart watch that constantly tracks their pulse.\n\nQuestion: How does this 'IoE' technology actually help the doctors treating them?",
+              task1a: "The watch automatically sends real-time heart data over the internet to the hospital's database, allowing doctors to spot problems instantly without the patient having to travel for a checkup.",
+              hw: 'How can wearable IoE devices benefit a patient with a heart condition?', hwa: 'Sends live heart rate data to doctors automatically, allowing for remote monitoring.' },
+            { id: 'w35', topic: 'Topic Area 6: Internet of Everything (IoE)', title: 'IoE Privacy & Security', img: TA_IMAGES[6],
+              task1: "If your whole house is full of 'Smart Devices' (speakers listening, cameras watching, meters tracking)...\n\nQuestion: What is the biggest worry for the people living there?",
+              task1a: "Privacy and Security. Hackers could potentially break into the network and tap into cameras, or the companies that made the devices could secretly sell your personal data.",
+              hw: 'Explain why the IoE creates new privacy concerns for users.', hwa: 'Constant data collection from personal devices increases the risk of sensitive life data being leaked.' }
+        ];
+
+        let lessons = JSON.parse(localStorage.getItem('ocr_lessons_r050')) || defaultLessons;
+        let studentProgress = JSON.parse(localStorage.getItem('ocr_student_progress_r050')) || {};
+        
+        // Data migration / fallback for required properties
+        lessons.forEach(l => {
+            if(!l.dn || !Array.isArray(l.dn)) {
+                l.dn = ["Identify one key concept of " + l.title + ".", "Why is " + l.title + " important?", "Revision: State one design tool.", "Revision: Name a cyber threat."];
+                l.dna = ["A valid concept from the spec.", "Ensures efficiency.", "Flowchart.", "Phishing."];
+            }
+            if(!l.task1) {
+                l.task1 = "In this session, we investigate " + l.title + ".\n\nTask: Define the core terminology associated with this topic.";
+                l.task1a = "Establish examiner-standard definitions.";
+            }
+            if(!l.task2) {
+                l.task2 = "Scenario: A small company uses " + l.title + ". Evaluate the impact.";
+                l.task2a = "Link feature to outcome (e.g. data security).";
+            }
+            if(!l.exam) {
+                l.exam = "Explain one benefit of " + l.title + ". [2 marks]";
+                l.exama = "1 mark for benefit, 1 mark for application.";
+            }
+            let topicNumber = l.topic ? l.topic.match(/\d/) : null;
+            if(!l.img) {
+                l.img = topicNumber ? TA_IMAGES[topicNumber[0]] : TA_IMAGES[1];
+            }
+        });
+
+        // Store back safely
+        localStorage.setItem('ocr_lessons_r050', JSON.stringify(lessons));
+
+        let answersVisible = false;
+        let isTeacherAuthenticated = false;
+
+        function showView(viewName) {
+            if (viewName === 'teacher' && !isTeacherAuthenticated) {
+                document.getElementById('login-overlay').classList.remove('hidden');
+                return;
+            }
+
+            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+            const target = document.getElementById(`view-${viewName}`);
+            if (target) target.classList.remove('hidden');
+
+            if (viewName === 'student') {
+                renderLessonGrid();
+                document.getElementById('lesson-selection').classList.remove('hidden');
+                document.getElementById('active-lesson').classList.add('hidden');
+            } else if (viewName === 'homework') {
+                renderHomeworkGrid();
+            } else if (viewName === 'teacher') {
+                renderManageGrid();
+            }
+            
+            answersVisible = true;
+            toggleAllAnswers(); // Defaults to hidden visually
+            window.scrollTo(0, 0);
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            
+            if (user === 'admin' && pass === 'Retford2026') {
+                isTeacherAuthenticated = true;
+                document.getElementById('login-error').classList.add('hidden');
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('login-user').value = '';
+                document.getElementById('login-pass').value = '';
+                showView('teacher');
+            } else {
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            isTeacherAuthenticated = false;
+            showView('student');
+        }
+
+        function closeLogin() {
+            document.getElementById('login-overlay').classList.add('hidden');
+        }
+
+        function handleImageUpload(event, previewId) {
+            const file = event.target.files[0];
+            const preview = document.getElementById(previewId);
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.innerHTML = `
+                    <div class="relative inline-block group">
+                        <img src="${e.target.result}" class="rounded-xl border shadow-md">
+                        <button onclick="clearImage('${previewId}')" class="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center no-print shadow-lg hover:scale-110 transition"><i class="fas fa-times text-xs"></i></button>
+                    </div>`;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearImage(previewId) { document.getElementById(previewId).innerHTML = ''; }
+        
+        function restoreImage(containerId, dataUrl) {
+            if (!dataUrl) return;
+            const preview = document.getElementById(containerId);
+            if(preview) {
+                preview.innerHTML = `
+                    <div class="relative inline-block group">
+                        <img src="${dataUrl}" class="rounded-xl border shadow-md">
+                        <button onclick="clearImage('${containerId}')" class="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center no-print shadow-lg hover:scale-110 transition"><i class="fas fa-times text-xs"></i></button>
+                    </div>`;
+            }
+        }
+
+        function saveLessonProgress(id) {
+            const dn = [];
+            document.querySelectorAll(`[id^="dn-ans-${id}-"]`).forEach(el => dn.push(el.value));
+            
+            const task1 = document.getElementById(`task1-ans-${id}`).value;
+            const task2 = document.getElementById(`task2-ans-${id}`).value;
+            const exam = document.getElementById(`exam-ans-${id}`).value;
+            const hwEl = document.getElementById(`hw-ans-${id}`);
+            const hw = hwEl ? hwEl.value : '';
+            
+            const imgContainer = document.getElementById(`l-hw-img-${id}`);
+            const imgEl = imgContainer ? imgContainer.querySelector('img') : null;
+            const imgData = imgEl ? imgEl.src : null;
+
+            if(!studentProgress[id]) studentProgress[id] = {};
+            studentProgress[id] = { ...studentProgress[id], dn, task1, task2, exam, hw, hwImg: imgData };
+
+            try {
+                localStorage.setItem('ocr_student_progress_r050', JSON.stringify(studentProgress));
+                alert('Work saved successfully!');
+            } catch (e) {
+                alert('Error saving work. If you uploaded a very large image, try removing it. Memory limit reached.');
+            }
+        }
+
+        function saveHomeworkProgress() {
+            lessons.forEach(l => {
+                const ta = document.getElementById(`hw-grid-ans-${l.id}`);
+                if (ta) {
+                    if(!studentProgress[l.id]) studentProgress[l.id] = {};
+                    studentProgress[l.id].hw = ta.value;
+                    
+                    const imgContainer = document.getElementById(`hw-img-${l.id}`);
+                    const imgEl = imgContainer ? imgContainer.querySelector('img') : null;
+                    if(imgEl) {
+                       studentProgress[l.id].hwImg = imgEl.src;
+                    } else if (imgContainer && imgContainer.innerHTML === '') {
+                       studentProgress[l.id].hwImg = null; 
+                    }
+                }
+            });
+            try {
+                localStorage.setItem('ocr_student_progress_r050', JSON.stringify(studentProgress));
+                alert('All homework saved successfully!');
+            } catch (e) {
+                alert('Error saving work. Storage limit reached due to large images.');
+            }
+        }
+
+        function isLessonCompleted(lesson, progress) {
+            if (!progress) return false;
+            const hasHw = !!(lesson.hw && lesson.hw.trim() !== '');
+            const dnCompleted = progress.dn && progress.dn.length === (lesson.dn ? lesson.dn.length : 4) && progress.dn.every(a => a && a.trim() !== '');
+            return dnCompleted &&
+                   progress.task1 && progress.task1.trim() !== '' &&
+                   progress.task2 && progress.task2.trim() !== '' &&
+                   progress.exam && progress.exam.trim() !== '' &&
+                   (!hasHw || (progress.hw && progress.hw.trim() !== ''));
+        }
+
+        function updateProgressBar() {
+            if (!lessons || lessons.length === 0) return;
+            let completedCount = 0;
+            lessons.forEach(l => {
+                if (isLessonCompleted(l, studentProgress[l.id])) {
+                    completedCount++;
+                }
+            });
+            const percentage = Math.round((completedCount / lessons.length) * 100);
+            
+            const fill = document.getElementById('progress-bar-fill');
+            const text = document.getElementById('progress-text');
+            
+            if(fill) fill.style.width = `${percentage}%`;
+            if(text) text.innerText = `${percentage}%`;
+        }
+
+        function renderLessonGrid() {
+            const grid = document.getElementById('lesson-grid');
+            grid.innerHTML = lessons.map(l => {
+                const progress = studentProgress[l.id];
+                let indicator = '<i class="fas fa-circle text-gray-300 mr-1"></i> <span class="text-gray-400 font-bold">Not Started</span>';
+                
+                if (progress) {
+                    const isCompleted = isLessonCompleted(l, progress);
+                    
+                    // Check if they have started anything at all
+                    const hasAnyData = (progress.task1 && progress.task1.trim() !== '') || 
+                                       (progress.task2 && progress.task2.trim() !== '') || 
+                                       (progress.exam && progress.exam.trim() !== '') || 
+                                       (progress.hw && progress.hw.trim() !== '') || 
+                                       (progress.dn && progress.dn.some(a => a && a.trim() !== ''));
+
+                    if (isCompleted) {
+                        indicator = '<i class="fas fa-check-circle text-ocr-green mr-1"></i> <span class="text-ocr-green font-black">Completed</span>';
+                    } else if (hasAnyData) {
+                        indicator = '<i class="fas fa-spinner text-orange-500 mr-1"></i> <span class="text-orange-500 font-bold">In Progress</span>';
+                    }
+                }
+                
+                return `
+                <div class="lesson-card bg-white p-6 rounded-3xl shadow-sm border border-gray-100 cursor-pointer flex flex-col justify-between" onclick="openLesson('${l.id}')">
+                    <div>
+                        <span class="text-[10px] font-black uppercase text-gray-400 block mb-2">${l.topic}</span>
+                        <h3 class="text-xl font-extrabold text-ocr-navy leading-tight">${l.title}</h3>
+                    </div>
+                    <div class="mt-4 flex justify-between items-center">
+                        <span class="text-xs flex items-center">${indicator}</span>
+                        <i class="fas fa-arrow-right text-ocr-navy opacity-20"></i>
+                    </div>
+                </div>`
+            }).join('');
+            
+            updateProgressBar();
+        }
+
+        function renderHomeworkGrid() {
+            const grid = document.getElementById('homework-grid');
+            grid.innerHTML = lessons.map((l, i) => {
+                const previewId = `hw-img-${l.id}`;
+                return `
+                <div class="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="bg-ocr-navy text-white text-[10px] font-black uppercase px-3 py-1 rounded-full">Week ${i+1}</span>
+                            <i class="fas fa-house-user text-slate-300"></i>
+                        </div>
+                        <h4 class="text-[10px] font-black uppercase text-ocr-purple mb-1">${l.topic}</h4>
+                        <p class="text-slate-700 font-bold mb-4">${l.hw || ''}</p>
+                        <textarea id="hw-grid-ans-${l.id}" rows="3" class="w-full border-2 border-slate-50 p-4 rounded-2xl text-sm outline-none focus:border-ocr-purple transition shadow-inner print-box" placeholder="Enter answer here..."></textarea>
+                        <label class="mt-4 cursor-pointer bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl text-[10px] font-black text-slate-600 transition flex items-center w-max no-print">
+                            <i class="fas fa-image mr-2"></i> Upload Drawing
+                            <input type="file" class="hidden" accept="image/*" onchange="handleImageUpload(event, '${previewId}')">
+                        </label>
+                        <div id="${previewId}" class="img-preview-container"></div>
+                    </div>
+                    <div class="answer-panel mt-4"><div class="bg-green-600 p-4 rounded-2xl text-white text-[10px] font-bold"><p class="opacity-80 mb-1 uppercase tracking-widest">Mark Scheme:</p>${l.hwa || ''}</div></div>
+                </div>`;
+            }).join('');
+
+            // Restore saved values
+            lessons.forEach(l => {
+                const progress = studentProgress[l.id];
+                if (progress) {
+                    const ta = document.getElementById(`hw-grid-ans-${l.id}`);
+                    if (ta && progress.hw) ta.value = progress.hw;
+                    if (progress.hwImg) restoreImage(`hw-img-${l.id}`, progress.hwImg);
+                }
+            });
+        }
+
+        function renderManageGrid() {
+            const grid = document.getElementById('manage-grid');
+            grid.innerHTML = lessons.map(l => `
+                <div class="flex items-center justify-between bg-white p-4 rounded-xl border">
+                    <span class="font-bold text-sm text-ocr-navy">${l.title}</span>
+                    <button onclick="deleteLesson('${l.id}')" class="text-red-400 p-2"><i class="fas fa-trash-alt"></i></button>
+                </div>`).join('');
+        }
+
+        function toggleAllAnswers() {
+            answersVisible = !answersVisible;
+            const btn = document.getElementById('btn-toggle-answers');
+            if (btn) {
+                document.querySelectorAll('.answer-panel').forEach(p => p.classList.toggle('open', answersVisible));
+                btn.innerHTML = answersVisible ? '<i class="fas fa-eye-slash mr-2"></i> Hide Answers' : '<i class="fas fa-lightbulb mr-2"></i> Reveal Mark Scheme';
+                btn.classList.toggle('bg-ocr-green', !answersVisible);
+                btn.classList.toggle('bg-gray-700', answersVisible);
+            }
+        }
+
+        function openLesson(id) {
+            const l = lessons.find(x => x.id === id);
+            answersVisible = true;
+            
+            const hId = `l-hw-img-${l.id}`;
+            const lessonImage = l.img || TA_IMAGES[1];
+
+            // Re-bind save button to this specific lesson ID
+            document.getElementById('btn-save-lesson').setAttribute('onclick', `saveLessonProgress('${l.id}')`);
+
+            document.getElementById('lesson-content').innerHTML = `
+                <div class="bg-white rounded-[2rem] shadow-xl overflow-hidden mb-8 border border-gray-100">
+                    <div class="bg-ocr-navy p-10 text-white relative">
+                        <div class="absolute top-0 right-0 p-8 opacity-10"><i class="fas fa-graduation-cap text-9xl"></i></div>
+                        <span class="text-xs uppercase font-black tracking-widest text-purple-300 block mb-2">${l.topic}</span>
+                        <h1 class="text-4xl font-black">${l.title}</h1>
+                    </div>
+                    <div class="p-10 space-y-16">
+                        <section>
+                            <h2 class="text-2xl font-black text-ocr-navy mb-6">Do Now: Retrieval</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${(l.dn || []).map((q, i) => `
+                                    <div class="bg-slate-50 p-6 rounded-3xl border">
+                                        <p class="mb-4 font-bold text-gray-700">Q${i+1}. ${q}</p>
+                                        <input type="text" id="dn-ans-${l.id}-${i}" class="w-full p-3 bg-white border rounded-xl text-sm outline-none print-box" placeholder="Answer...">
+                                        <div class="answer-panel text-ocr-green font-bold text-xs mt-3 bg-green-50 p-3 rounded-xl"><i class="fas fa-check mr-2"></i>${(l.dna || [])[i] || ''}</div>
+                                    </div>`).join('')}
+                            </div>
+                        </section>
+                        <section>
+                            <h2 class="text-2xl font-black text-ocr-navy mb-6">Task 1: Activate</h2>
+                            <div class="bg-purple-50 p-8 rounded-3xl border border-purple-100">
+                                <img src="${lessonImage}" alt="Educational Context" class="w-full h-48 md:h-64 object-cover rounded-2xl mb-6 shadow-sm border-2 border-white" onerror="this.src='https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80'">
+                                <p class="text-lg font-medium text-ocr-navy mb-4 whitespace-pre-line">${l.task1 || ''}</p>
+                                <textarea id="task1-ans-${l.id}" rows="3" class="w-full border-2 border-purple-100 p-4 rounded-2xl text-sm outline-none focus:border-ocr-purple transition shadow-inner bg-white print-box" placeholder="Activate your knowledge... Type your notes or answers here."></textarea>
+                            </div>
+                            <div class="answer-panel">
+                                <div class="bg-green-50 border-2 border-dashed border-green-200 p-6 rounded-3xl text-green-800 text-sm italic mt-4">
+                                    <p class="font-bold uppercase text-[10px] tracking-widest mb-1 text-green-600">Teacher Guidance / Expected Knowledge:</p>
+                                    ${l.task1a || ''}
+                                </div>
+                            </div>
+                        </section>
+                        <section>
+                            <h2 class="text-2xl font-black text-ocr-navy mb-6">Task 2: Apply</h2>
+                            <div class="bg-white border-2 p-8 rounded-3xl">
+                                <p class="font-bold text-ocr-navy mb-4 italic">"${l.task2 || ''}"</p>
+                                <textarea id="task2-ans-${l.id}" rows="4" class="w-full border p-4 rounded-xl text-sm shadow-inner print-box" placeholder="Your analysis..."></textarea>
+                            </div>
+                            <div class="answer-panel"><div class="bg-green-50 border-2 border-green-100 p-6 rounded-3xl text-green-900 text-sm">${l.task2a || ''}</div></div>
+                        </section>
+                        <section>
+                            <h2 class="text-2xl font-black text-ocr-navy mb-6">Task 3: Consolidation (Exam Practice)</h2>
+                            <div class="bg-ocr-navy p-8 rounded-3xl text-white italic text-lg shadow-lg">${l.exam || ''}</div>
+                            <textarea id="exam-ans-${l.id}" rows="3" class="w-full border p-4 rounded-xl mt-4 shadow-inner print-box" placeholder="Draft your exam answer..."></textarea>
+                            <div class="answer-panel"><div class="bg-slate-800 p-8 rounded-3xl text-white border-l-8 border-purple-500 text-sm"><p class="text-purple-300 font-black mb-2 uppercase">OFFICIAL MARK SCHEME</p>${l.exama || ''}</div></div>
+                        </section>
+                        <section class="no-print">
+                            <div class="bg-slate-100 p-10 rounded-[2rem] border-2 border-slate-200">
+                                <h2 class="text-2xl font-black text-ocr-navy mb-6 flex items-center"><i class="fas fa-house-chimney mr-4"></i>Home Learning</h2>
+                                <div class="bg-white p-8 rounded-2xl shadow-sm border mb-4">
+                                    <p class="text-slate-700 font-bold mb-4">${l.hw || ''}</p>
+                                    <textarea id="hw-ans-${l.id}" rows="3" class="w-full border p-4 rounded-xl text-sm mb-4 print-box" placeholder="Enter homework details..."></textarea>
+                                    <label class="cursor-pointer bg-slate-100 px-4 py-2 rounded-xl text-[10px] font-black text-slate-600 flex items-center w-max no-print mb-2">
+                                        <i class="fas fa-image mr-2"></i> Upload Photo of Evidence
+                                        <input type="file" class="hidden" accept="image/*" onchange="handleImageUpload(event, '${hId}')">
+                                    </label>
+                                    <div id="${hId}" class="img-preview-container"></div>
+                                </div>
+                                <div class="answer-panel"><div class="bg-green-600 p-6 rounded-2xl text-white shadow-lg text-sm italic">${l.hwa || ''}</div></div>
+                            </div>
+                        </section>
+                    </div>
+                </div>`;
+            
+            // Restore saved values for this lesson
+            const progress = studentProgress[l.id];
+            if (progress) {
+                if (progress.dn) {
+                    progress.dn.forEach((val, i) => {
+                        const el = document.getElementById(`dn-ans-${l.id}-${i}`);
+                        if (el) el.value = val;
+                    });
+                }
+                if (progress.task1) document.getElementById(`task1-ans-${l.id}`).value = progress.task1;
+                if (progress.task2) document.getElementById(`task2-ans-${l.id}`).value = progress.task2;
+                if (progress.exam) document.getElementById(`exam-ans-${l.id}`).value = progress.exam;
+                if (progress.hw) {
+                    const hwEl = document.getElementById(`hw-ans-${l.id}`);
+                    if (hwEl) hwEl.value = progress.hw;
+                }
+                if (progress.hwImg) restoreImage(`l-hw-img-${l.id}`, progress.hwImg);
+            }
+
+            toggleAllAnswers(); // Reset visually to hidden
+            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+            document.getElementById('view-student').classList.remove('hidden');
+            document.getElementById('lesson-selection').classList.add('hidden');
+            document.getElementById('active-lesson').classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
+        document.getElementById('lesson-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            let topicText = document.getElementById('f-topic').value;
+            let topicNumber = topicText.match(/\d/) ? topicText.match(/\d/)[0] : 1;
+            let lessonImage = document.getElementById('f-img').value || TA_IMAGES[topicNumber];
+
+            const l = {
+                id: Date.now().toString(),
+                topic: topicText,
+                title: document.getElementById('f-title').value || "Untitled Lesson",
+                img: lessonImage,
+                dn: [document.getElementById('f-dn1').value, document.getElementById('f-dn2').value, document.getElementById('f-dn3').value, document.getElementById('f-dn4').value],
+                dna: [document.getElementById('f-dna1').value, document.getElementById('f-dna2').value, document.getElementById('f-dna3').value, document.getElementById('f-dna4').value],
+                task1: document.getElementById('f-task1').value, task1a: document.getElementById('f-task1a').value,
+                task2: document.getElementById('f-task2').value, task2a: document.getElementById('f-task2a').value,
+                exam: document.getElementById('f-exam').value, exama: document.getElementById('f-exama').value,
+                hw: document.getElementById('f-hw').value, hwa: document.getElementById('f-hwa').value
+            };
+            lessons.unshift(l);
+            localStorage.setItem('ocr_lessons_r050', JSON.stringify(lessons));
+            alert('Lesson successfully published.');
+            document.getElementById('lesson-form').reset();
+            showView('student');
+        });
+
+        function deleteLesson(id) {
+            if(confirm('Delete this lesson?')) {
+                lessons = lessons.filter(x => x.id !== id);
+                localStorage.setItem('ocr_lessons_r050', JSON.stringify(lessons));
+                
+                // Clean up progress as well
+                delete studentProgress[id];
+                localStorage.setItem('ocr_student_progress_r050', JSON.stringify(studentProgress));
+                
+                renderManageGrid(); renderLessonGrid();
+            }
+        }
+
+        renderLessonGrid();
+    </script>
+</body>
+</html>
