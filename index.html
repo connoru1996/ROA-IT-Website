@@ -10,7 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0}
 html,body,#root{height:100%;min-height:100vh}
@@ -1044,9 +1045,9 @@ function AdminPanel({ p, assignments, setAssignments, lbData, customContent, set
     // CMS helper functions
     const saveContent = async (newContent) => {
         setCustomContent(newContent);
-        if (_db) {
+        if (_fbDb) {
             try {
-                await _db.from("shared").upsert({ key: "custom_content", value: newContent, updated_at: new Date().toISOString() });
+                await _fbDb.ref("shared/custom_content").set(newContent);
             }
             catch (e) {
                 console.error("Save content error", e);
@@ -3073,7 +3074,7 @@ function LoginScreen({ onLogin, p, dm, setDm }) {
         const timeout = setTimeout(finish, 3000);
         (async () => {
             try {
-                if (_db) {
+                if (_fbDb) {
                     const existing = await loadUser("roait");
                     if (!existing) {
                         await saveUser("roait", {
@@ -3192,83 +3193,86 @@ function ChangePasswordScreen({ user, p, onComplete }) {
             React.createElement("div", { style: { marginTop: 16, padding: 10, background: p.warm, borderRadius: 8, fontSize: 10, color: p.muted, lineHeight: 1.5 } }, "You only need to do this once. After this, use your username and new password to sign in."))));
 }
 // ─── Storage Helpers ─────────────────────────────────────────────────────────
-var SUPABASE_URL = "https://pistixcmfgggoeamyhia.supabase.co";
-var SUPABASE_KEY = "sb_publishable_4xQduuh379TJA6uMAeP-HQ_b7yCr2om";
-var _db = null;
+// ─── Firebase Storage ─────────────────────────────────────────────────────────
+var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAk9NGjLGX2unzqb5MUuLUsLkWWnKqXwJk",
+    authDomain: "scholarhub-88e3a.firebaseapp.com",
+    databaseURL: "https://scholarhub-88e3a-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "scholarhub-88e3a",
+    storageBucket: "scholarhub-88e3a.firebasestorage.app",
+    messagingSenderId: "20800596054",
+    appId: "1:20800596054:web:ed8f83abe965306988f3f7"
+};
+var _fbApp = null;
+var _fbDb = null;
 try {
-    _db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+    _fbDb = firebase.database();
 }
 catch (e) {
-    console.warn("Supabase init failed", e);
+    console.warn("Firebase init failed:", e);
 }
 async function saveUser(username, userData) {
-    if (!_db) {
-        console.error("No database connection");
+    if (!_fbDb) {
+        console.error("No database");
         return false;
     }
     try {
-        var res = await _db.from("users").upsert({ username: username, data: userData, updated_at: new Date().toISOString() });
-        if (res.error) {
-            console.error("Save error:", res.error.message);
-            return false;
-        }
+        await _fbDb.ref("users/" + username).set(userData);
         return true;
     }
     catch (e) {
-        console.error("Save exception:", e);
+        console.error("Save error:", e);
         return false;
     }
 }
 async function loadUser(username) {
-    if (!_db)
+    if (!_fbDb)
         return null;
     try {
-        var res = await _db.from("users").select("data").eq("username", username).single();
-        if (res.error || !res.data)
-            return null;
-        return typeof res.data.data === "string" ? JSON.parse(res.data.data) : res.data.data;
+        var snap = await _fbDb.ref("users/" + username).once("value");
+        return snap.exists() ? snap.val() : null;
     }
     catch (e) {
         return null;
     }
 }
 async function saveLeaderboard(entry) {
-    if (!_db)
+    if (!_fbDb)
         return;
     try {
-        await _db.from("shared").upsert({ key: "lb:" + entry.username, value: entry, updated_at: new Date().toISOString() });
+        await _fbDb.ref("leaderboard/" + entry.username).set(entry);
     }
     catch (e) { }
 }
 async function loadLeaderboard() {
-    if (!_db)
+    if (!_fbDb)
         return [];
     try {
-        var res = await _db.from("shared").select("value").like("key", "lb:%");
-        if (res.error || !res.data)
+        var snap = await _fbDb.ref("leaderboard").once("value");
+        if (!snap.exists())
             return [];
-        return res.data.map(function (r) { return typeof r.value === "string" ? JSON.parse(r.value) : r.value; }).sort(function (a, b) { return b.xp - a.xp; });
+        var data = snap.val();
+        return Object.values(data).sort(function (a, b) { return b.xp - a.xp; });
     }
     catch (e) {
         return [];
     }
 }
 async function saveAnnouncements(annData) {
-    if (!_db)
+    if (!_fbDb)
         return;
     try {
-        await _db.from("shared").upsert({ key: "announcements", value: annData, updated_at: new Date().toISOString() });
+        await _fbDb.ref("shared/announcements").set(annData);
     }
     catch (e) { }
 }
 async function loadAnnouncements() {
-    if (!_db)
+    if (!_fbDb)
         return null;
     try {
-        var res = await _db.from("shared").select("value").eq("key", "announcements").single();
-        if (res.error || !res.data)
-            return null;
-        return typeof res.data.value === "string" ? JSON.parse(res.data.value) : res.data.value;
+        var snap = await _fbDb.ref("shared/announcements").once("value");
+        return snap.exists() ? snap.val() : null;
     }
     catch (e) {
         return null;
@@ -3331,12 +3335,11 @@ function App() {
             const lb = await loadLeaderboard();
             setLbData(lb);
             // Load custom content
-            if (_db) {
+            if (_fbDb) {
                 try {
-                    var ccRes = await _db.from("shared").select("value").eq("key", "custom_content").single();
-                    if (!ccRes.error && ccRes.data) {
-                        var cc = typeof ccRes.data.value === "string" ? JSON.parse(ccRes.data.value) : ccRes.data.value;
-                        setCustomContent(cc || { lessons: [], homework: [], quizzes: [], announcements: [] });
+                    var ccSnap2 = await _fbDb.ref("shared/custom_content").once("value");
+                    if (ccSnap2.exists()) {
+                        setCustomContent(ccSnap2.val() || { lessons: [], homework: [], quizzes: [], announcements: [] });
                     }
                 }
                 catch (e) { }
