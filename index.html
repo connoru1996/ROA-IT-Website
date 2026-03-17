@@ -905,7 +905,7 @@ function AnnouncementsView({ p, announcements, setAnnouncements, user }) {
                 "\u2014 ",
                 a.author)))));
 }
-function AdminPanel({ p, assignments, setAssignments, lbData }) {
+function AdminPanel({ p, assignments, setAssignments, lbData, customContent, setCustomContent }) {
     const [na, setNa] = useState({ title: "", due: "", description: "" });
     const [studentName, setStudentName] = useState("");
     const [bulkNames, setBulkNames] = useState("");
@@ -915,6 +915,13 @@ function AdminPanel({ p, assignments, setAssignments, lbData }) {
     const [adminTab, setAdminTab] = useState("students");
     const [resetUser, setResetUser] = useState("");
     const [resetMsg, setResetMsg] = useState("");
+    // CMS state
+    const [cmsTab, setCmsTab] = useState("lessons");
+    const [editingItem, setEditingItem] = useState(null);
+    const [lessonForm, setLessonForm] = useState({ title: "", topicArea: "TA1", content: "", doNow: [{ q: "", opts: ["", "", "", ""], ans: 0 }, { q: "", opts: ["", "", "", ""], ans: 0 }, { q: "", opts: ["", "", "", ""], ans: 0 }, { q: "", opts: ["", "", "", ""], ans: 0 }], task1: { title: "", instruction: "" }, task2: { title: "", instruction: "" }, examQs: [{ q: "", marks: 4, hint: "" }] });
+    const [hwForm, setHwForm] = useState({ title: "", topic: "TA1", type: "exam", due: "", tasks: [{ q: "", marks: 4 }] });
+    const [quizForm, setQuizForm] = useState({ title: "", topic: "TA1", quizType: "tf", questions: [{ q: "", a: true, explain: "" }] });
+    const [announceForm, setAnnounceForm] = useState({ title: "", body: "", pinned: false });
     const generateUsername = (name) => {
         const parts = name.trim().toLowerCase().split(/\s+/);
         if (parts.length >= 2)
@@ -925,10 +932,12 @@ function AdminPanel({ p, assignments, setAssignments, lbData }) {
         const words = ["Blue", "Red", "Green", "Gold", "Star", "Moon", "Sun", "Tree", "Lake", "Fire", "Rain", "Snow", "Wind", "Rock", "Wave"];
         return words[Math.floor(Math.random() * words.length)] + Math.floor(Math.random() * 900 + 100);
     };
+    const [createError, setCreateError] = useState("");
     const createSingleStudent = async () => {
         if (!studentName.trim())
             return;
         setCreating(true);
+        setCreateError("");
         const name = studentName.trim();
         let username = generateUsername(name);
         const existing = await loadUser(username);
@@ -939,7 +948,12 @@ function AdminPanel({ p, assignments, setAssignments, lbData }) {
             name, role: "student", password: tempPw, mustChangePassword: true,
             done: [], xp: 0, notes: {}, taskAnswers: {}, taskImages: {}, assignments: INIT_ASSIGNMENTS
         };
-        await saveUser(username, newUser);
+        const saved = await saveUser(username, newUser);
+        if (!saved) {
+            setCreateError("Failed to save — check Supabase connection and table setup.");
+            setCreating(false);
+            return;
+        }
         await saveLeaderboard({ username, name, avatar: "🎓", xp: 0, role: "student" });
         setCreatedAccounts(prev => [...prev, { name, username, password: tempPw }]);
         setStudentName("");
@@ -950,6 +964,7 @@ function AdminPanel({ p, assignments, setAssignments, lbData }) {
         if (names.length === 0)
             return;
         setCreating(true);
+        setCreateError("");
         const newAccounts = [];
         for (const name of names) {
             let username = generateUsername(name);
@@ -961,7 +976,11 @@ function AdminPanel({ p, assignments, setAssignments, lbData }) {
                 name, role: "student", password: tempPw, mustChangePassword: true,
                 done: [], xp: 0, notes: {}, taskAnswers: {}, taskImages: {}, assignments: INIT_ASSIGNMENTS
             };
-            await saveUser(username, newUser);
+            const saved = await saveUser(username, newUser);
+            if (!saved) {
+                setCreateError("Failed to save " + name + " — check Supabase.");
+                continue;
+            }
             await saveLeaderboard({ username, name, avatar: "🎓", xp: 0, role: "student" });
             newAccounts.push({ name, username, password: tempPw });
         }
@@ -1015,12 +1034,88 @@ function AdminPanel({ p, assignments, setAssignments, lbData }) {
     };
     const adminTabs = [
         { id: "students", label: "👥 Students" },
+        { id: "cms", label: "✏️ Content" },
         { id: "work", label: "📄 Work" },
-        { id: "hwtracker", label: "📋 HW Tracker" },
+        { id: "hwtracker", label: "📋 HW Track" },
         { id: "feedback", label: "💬 Feedback" },
-        { id: "assignments", label: "📋 Assignments" },
+        { id: "assignments", label: "📋 Tasks" },
         { id: "progress", label: "📊 Progress" },
     ];
+    // CMS helper functions
+    const saveContent = async (newContent) => {
+        setCustomContent(newContent);
+        if (_db) {
+            try {
+                await _db.from("shared").upsert({ key: "custom_content", value: newContent, updated_at: new Date().toISOString() });
+            }
+            catch (e) {
+                console.error("Save content error", e);
+            }
+        }
+    };
+    const addLesson = async () => {
+        if (!lessonForm.title.trim())
+            return;
+        const id = Date.now();
+        const newLesson = { ...lessonForm, id, createdAt: new Date().toISOString() };
+        const updated = { ...customContent, lessons: [...(customContent.lessons || []), newLesson] };
+        await saveContent(updated);
+        setLessonForm({ title: "", topicArea: "TA1", content: "", doNow: [{ q: "", opts: ["", "", "", ""], ans: 0 }, { q: "", opts: ["", "", "", ""], ans: 0 }, { q: "", opts: ["", "", "", ""], ans: 0 }, { q: "", opts: ["", "", "", ""], ans: 0 }], task1: { title: "", instruction: "" }, task2: { title: "", instruction: "" }, examQs: [{ q: "", marks: 4, hint: "" }] });
+    };
+    const addHomework = async () => {
+        if (!hwForm.title.trim())
+            return;
+        const id = Date.now();
+        const newHw = { ...hwForm, id, createdAt: new Date().toISOString() };
+        const updated = { ...customContent, homework: [...(customContent.homework || []), newHw] };
+        await saveContent(updated);
+        setHwForm({ title: "", topic: "TA1", type: "exam", due: "", tasks: [{ q: "", marks: 4 }] });
+    };
+    const addQuiz = async () => {
+        if (!quizForm.title.trim())
+            return;
+        const id = Date.now();
+        const newQuiz = { ...quizForm, id, createdAt: new Date().toISOString() };
+        const updated = { ...customContent, quizzes: [...(customContent.quizzes || []), newQuiz] };
+        await saveContent(updated);
+        setQuizForm({ title: "", topic: "TA1", quizType: "tf", questions: [{ q: "", a: true, explain: "" }] });
+    };
+    const addAnnounce = async () => {
+        if (!announceForm.title.trim())
+            return;
+        const newA = { id: Date.now(), author: "Teacher", date: new Date().toISOString().split("T")[0], ...announceForm };
+        const updated = { ...customContent, announcements: [...(customContent.announcements || []), newA] };
+        await saveContent(updated);
+        setAnnounceForm({ title: "", body: "", pinned: false });
+    };
+    const deleteItem = async (type, id) => {
+        if (!confirm("Are you sure you want to delete this?"))
+            return;
+        const updated = { ...customContent, [type]: (customContent[type] || []).filter(item => item.id !== id) };
+        await saveContent(updated);
+    };
+    const duplicateItem = async (type, id) => {
+        const item = (customContent[type] || []).find(i => i.id === id);
+        if (!item)
+            return;
+        const dup = { ...JSON.parse(JSON.stringify(item)), id: Date.now(), title: item.title + " (copy)" };
+        const updated = { ...customContent, [type]: [...(customContent[type] || []), dup] };
+        await saveContent(updated);
+    };
+    const moveItem = async (type, id, direction) => {
+        const items = [...(customContent[type] || [])];
+        const idx = items.findIndex(i => i.id === id);
+        if (idx < 0)
+            return;
+        const newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= items.length)
+            return;
+        const temp = items[idx];
+        items[idx] = items[newIdx];
+        items[newIdx] = temp;
+        const updated = { ...customContent, [type]: items };
+        await saveContent(updated);
+    };
     // Student work viewer state
     const [viewingStudent, setViewingStudent] = useState(null);
     const [studentData, setStudentData] = useState(null);
@@ -1045,7 +1140,8 @@ function AdminPanel({ p, assignments, setAssignments, lbData }) {
                 React.createElement("h3", { style: { fontSize: 14, fontWeight: 600, color: p.dark, margin: "0 0 10px", fontFamily: sans } }, "Add a Student"),
                 React.createElement("div", { style: { display: "flex", gap: 6 } },
                     React.createElement("input", { className: "si", value: studentName, onChange: e => setStudentName(e.target.value), placeholder: "Student full name (e.g. Alex Thompson)", style: { flex: 1 }, onKeyDown: e => e.key === "Enter" && createSingleStudent() }),
-                    React.createElement("button", { className: "btn-p", onClick: createSingleStudent, disabled: creating, style: { fontSize: 12, padding: "8px 18px", whiteSpace: "nowrap" } }, creating ? "..." : "➕ Create"))),
+                    React.createElement("button", { className: "btn-p", onClick: createSingleStudent, disabled: creating, style: { fontSize: 12, padding: "8px 18px", whiteSpace: "nowrap" } }, creating ? "..." : "➕ Create")),
+                createError && React.createElement("div", { style: { marginTop: 8, padding: "10px 12px", background: p.danger + "10", border: `1px solid ${p.danger}30`, borderRadius: 8, fontSize: 11, color: p.danger } }, createError)),
             React.createElement("div", { style: { background: p.card, borderRadius: 12, padding: "20px", border: `1px solid ${p.border}`, marginBottom: 14 } },
                 React.createElement("h3", { style: { fontSize: 14, fontWeight: 600, color: p.dark, margin: "0 0 4px", fontFamily: sans } }, "Bulk Add Students"),
                 React.createElement("p", { style: { fontSize: 11, color: p.muted, margin: "0 0 10px" } }, "Paste a list of names, one per line"),
@@ -1082,6 +1178,146 @@ function AdminPanel({ p, assignments, setAssignments, lbData }) {
                             React.createElement("td", { style: { padding: "8px 12px", borderBottom: `1px solid ${p.border}`, fontFamily: "monospace", color: p.dark } }, a.password),
                             React.createElement("td", { style: { padding: "8px 12px", borderBottom: `1px solid ${p.border}` } },
                                 React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 6, background: a.reset ? "#fff3cd" : p.accentLight, color: a.reset ? "#856404" : p.accent, fontWeight: 600 } }, a.reset ? "Reset" : "New")))))))))))),
+        adminTab === "cms" && (React.createElement("div", null,
+            React.createElement("h1", { style: { fontFamily: font, fontSize: 22, fontWeight: 400, margin: "0 0 12px", color: p.dark } }, "\u270F\uFE0F Content Manager"),
+            React.createElement("div", { style: { display: "flex", gap: 4, marginBottom: 14, flexWrap: "wrap" } }, [{ id: "lessons", label: "📘 Lessons" }, { id: "hw", label: "🏡 Homework" }, { id: "quizzes", label: "✅ Quizzes" }, { id: "announces", label: "📢 Announcements" }].map(t => React.createElement("button", { key: t.id, onClick: () => setCmsTab(t.id), style: { padding: "6px 12px", borderRadius: 7, border: cmsTab === t.id ? `2px solid ${p.accent}` : `1px solid ${p.border}`, background: cmsTab === t.id ? p.accentLight : p.card, color: cmsTab === t.id ? p.accent : p.muted, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: sans } }, t.label))),
+            cmsTab === "lessons" && (React.createElement("div", null,
+                React.createElement("div", { style: { background: p.card, borderRadius: 12, padding: "20px", border: `1px solid ${p.border}`, marginBottom: 14 } },
+                    React.createElement("h3", { style: { fontSize: 14, fontWeight: 600, color: p.dark, margin: "0 0 12px", fontFamily: sans } }, "Create New Lesson"),
+                    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 8 } },
+                        React.createElement("input", { className: "si", value: lessonForm.title, onChange: e => setLessonForm({ ...lessonForm, title: e.target.value }), placeholder: "Lesson title", style: { flex: 1 } }),
+                        React.createElement("select", { className: "si", value: lessonForm.topicArea, onChange: e => setLessonForm({ ...lessonForm, topicArea: e.target.value }), style: { width: 100 } }, ["TA1", "TA2", "TA3", "TA4", "TA5", "TA6"].map(t => React.createElement("option", { key: t, value: t }, t)))),
+                    React.createElement("textarea", { className: "si", value: lessonForm.content, onChange: e => setLessonForm({ ...lessonForm, content: e.target.value }), placeholder: "Lesson content (use line breaks for paragraphs)", rows: 6, style: { resize: "vertical", marginBottom: 10 } }),
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: p.dark, marginBottom: 6 } }, "Do Now Questions (4 MCQs):"),
+                    lessonForm.doNow.map((q, qi) => (React.createElement("div", { key: qi, style: { padding: "10px", background: p.warm, borderRadius: 8, marginBottom: 6 } },
+                        React.createElement("input", { className: "si", value: q.q, onChange: e => { const d = [...lessonForm.doNow]; d[qi] = { ...d[qi], q: e.target.value }; setLessonForm({ ...lessonForm, doNow: d }); }, placeholder: `Question ${qi + 1}`, style: { marginBottom: 4 } }),
+                        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 } }, q.opts.map((o, oi) => (React.createElement("div", { key: oi, style: { display: "flex", gap: 4, alignItems: "center" } },
+                            React.createElement("input", { type: "radio", name: `doNow${qi}`, checked: q.ans === oi, onChange: () => { const d = [...lessonForm.doNow]; d[qi] = { ...d[qi], ans: oi }; setLessonForm({ ...lessonForm, doNow: d }); } }),
+                            React.createElement("input", { className: "si", value: o, onChange: e => { const d = [...lessonForm.doNow]; const opts = [...d[qi].opts]; opts[oi] = e.target.value; d[qi] = { ...d[qi], opts }; setLessonForm({ ...lessonForm, doNow: d }); }, placeholder: `Option ${String.fromCharCode(65 + oi)}`, style: { flex: 1, padding: "6px 8px", fontSize: 11 } }))))),
+                        React.createElement("div", { style: { fontSize: 9, color: p.muted, marginTop: 2 } }, "Select the radio button next to the correct answer")))),
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: p.dark, margin: "10px 0 6px" } }, "Task 1:"),
+                    React.createElement("input", { className: "si", value: lessonForm.task1.title, onChange: e => setLessonForm({ ...lessonForm, task1: { ...lessonForm.task1, title: e.target.value } }), placeholder: "Task 1 title", style: { marginBottom: 4 } }),
+                    React.createElement("textarea", { className: "si", value: lessonForm.task1.instruction, onChange: e => setLessonForm({ ...lessonForm, task1: { ...lessonForm.task1, instruction: e.target.value } }), placeholder: "Task 1 instructions", rows: 3, style: { resize: "vertical", marginBottom: 8 } }),
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: p.dark, margin: "0 0 6px" } }, "Task 2:"),
+                    React.createElement("input", { className: "si", value: lessonForm.task2.title, onChange: e => setLessonForm({ ...lessonForm, task2: { ...lessonForm.task2, title: e.target.value } }), placeholder: "Task 2 title", style: { marginBottom: 4 } }),
+                    React.createElement("textarea", { className: "si", value: lessonForm.task2.instruction, onChange: e => setLessonForm({ ...lessonForm, task2: { ...lessonForm.task2, instruction: e.target.value } }), placeholder: "Task 2 instructions", rows: 3, style: { resize: "vertical", marginBottom: 8 } }),
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: p.dark, margin: "0 0 6px" } }, "Exam Practice Questions:"),
+                    lessonForm.examQs.map((eq, i) => (React.createElement("div", { key: i, style: { display: "flex", gap: 4, marginBottom: 4, alignItems: "flex-start" } },
+                        React.createElement("textarea", { className: "si", value: eq.q, onChange: e => { const qs = [...lessonForm.examQs]; qs[i] = { ...qs[i], q: e.target.value }; setLessonForm({ ...lessonForm, examQs: qs }); }, placeholder: `Exam Q${i + 1}`, rows: 2, style: { flex: 1, resize: "vertical" } }),
+                        React.createElement("input", { className: "si", type: "number", value: eq.marks, onChange: e => { const qs = [...lessonForm.examQs]; qs[i] = { ...qs[i], marks: parseInt(e.target.value) || 1 }; setLessonForm({ ...lessonForm, examQs: qs }); }, style: { width: 50 }, min: 1, max: 9 }),
+                        React.createElement("input", { className: "si", value: eq.hint, onChange: e => { const qs = [...lessonForm.examQs]; qs[i] = { ...qs[i], hint: e.target.value }; setLessonForm({ ...lessonForm, examQs: qs }); }, placeholder: "Hint", style: { width: 120 } })))),
+                    React.createElement("button", { onClick: () => setLessonForm({ ...lessonForm, examQs: [...lessonForm.examQs, { q: "", marks: 4, hint: "" }] }), style: { padding: "4px 10px", borderRadius: 6, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted, marginBottom: 10 } }, "+ Add Exam Q"),
+                    React.createElement("div", null,
+                        React.createElement("button", { className: "btn-p", onClick: addLesson, style: { fontSize: 12 } }, "\uD83D\uDCD8 Create Lesson"))),
+                (customContent.lessons || []).length > 0 && React.createElement("div", { style: { marginBottom: 14 } },
+                    React.createElement("h3", { style: { fontSize: 13, fontWeight: 600, color: p.dark, margin: "0 0 8px", fontFamily: sans } },
+                        "Your Custom Lessons (",
+                        (customContent.lessons || []).length,
+                        ")"),
+                    (customContent.lessons || []).map((l, i) => (React.createElement("div", { key: l.id, style: { background: p.card, borderRadius: 8, padding: "12px 14px", border: `1px solid ${p.border}`, marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement("div", null,
+                            React.createElement("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 4, background: p.accentLight, color: p.accent, fontWeight: 600, marginRight: 6 } }, l.topicArea),
+                            React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: p.dark } }, l.title)),
+                        React.createElement("div", { style: { display: "flex", gap: 3 } },
+                            React.createElement("button", { onClick: () => moveItem("lessons", l.id, -1), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted } }, "\u2191"),
+                            React.createElement("button", { onClick: () => moveItem("lessons", l.id, 1), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted } }, "\u2193"),
+                            React.createElement("button", { onClick: () => duplicateItem("lessons", l.id), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted } }, "\uD83D\uDCCB"),
+                            React.createElement("button", { onClick: () => deleteItem("lessons", l.id), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.danger}30`, background: p.danger + "08", fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.danger } }, "\uD83D\uDDD1\uFE0F")))))))),
+            cmsTab === "hw" && (React.createElement("div", null,
+                React.createElement("div", { style: { background: p.card, borderRadius: 12, padding: "20px", border: `1px solid ${p.border}`, marginBottom: 14 } },
+                    React.createElement("h3", { style: { fontSize: 14, fontWeight: 600, color: p.dark, margin: "0 0 12px", fontFamily: sans } }, "Create New Homework"),
+                    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 8 } },
+                        React.createElement("input", { className: "si", value: hwForm.title, onChange: e => setHwForm({ ...hwForm, title: e.target.value }), placeholder: "Homework title", style: { flex: 1 } }),
+                        React.createElement("select", { className: "si", value: hwForm.topic, onChange: e => setHwForm({ ...hwForm, topic: e.target.value }), style: { width: 80 } }, ["TA1", "TA2", "TA3", "TA4", "TA5", "TA6", "Mixed"].map(t => React.createElement("option", { key: t, value: t }, t))),
+                        React.createElement("select", { className: "si", value: hwForm.type, onChange: e => setHwForm({ ...hwForm, type: e.target.value }), style: { width: 100 } }, ["research", "exam", "activity", "revision"].map(t => React.createElement("option", { key: t, value: t }, t)))),
+                    React.createElement("input", { className: "si", type: "date", value: hwForm.due, onChange: e => setHwForm({ ...hwForm, due: e.target.value }), style: { marginBottom: 8 } }),
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: p.dark, margin: "0 0 6px" } }, "Questions:"),
+                    hwForm.tasks.map((t, i) => (React.createElement("div", { key: i, style: { display: "flex", gap: 4, marginBottom: 4 } },
+                        React.createElement("textarea", { className: "si", value: t.q, onChange: e => { const ts = [...hwForm.tasks]; ts[i] = { ...ts[i], q: e.target.value }; setHwForm({ ...hwForm, tasks: ts }); }, placeholder: `Question ${i + 1}`, rows: 2, style: { flex: 1, resize: "vertical" } }),
+                        React.createElement("input", { className: "si", type: "number", value: t.marks, onChange: e => { const ts = [...hwForm.tasks]; ts[i] = { ...ts[i], marks: parseInt(e.target.value) || 1 }; setHwForm({ ...hwForm, tasks: ts }); }, style: { width: 50 }, min: 1, max: 9 }),
+                        hwForm.tasks.length > 1 && React.createElement("button", { onClick: () => setHwForm({ ...hwForm, tasks: hwForm.tasks.filter((_, j) => j !== i) }), style: { padding: "3px 8px", borderRadius: 4, border: `1px solid ${p.danger}30`, background: p.danger + "08", fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.danger } }, "\u2715")))),
+                    React.createElement("button", { onClick: () => setHwForm({ ...hwForm, tasks: [...hwForm.tasks, { q: "", marks: 4 }] }), style: { padding: "4px 10px", borderRadius: 6, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted, marginBottom: 10 } }, "+ Add Question"),
+                    React.createElement("div", null,
+                        React.createElement("button", { className: "btn-p", onClick: addHomework, style: { fontSize: 12 } }, "\uD83C\uDFE1 Create Homework"))),
+                (customContent.homework || []).length > 0 && React.createElement("div", null,
+                    React.createElement("h3", { style: { fontSize: 13, fontWeight: 600, color: p.dark, margin: "0 0 8px", fontFamily: sans } },
+                        "Your Custom Homework (",
+                        (customContent.homework || []).length,
+                        ")"),
+                    (customContent.homework || []).map(h => (React.createElement("div", { key: h.id, style: { background: p.card, borderRadius: 8, padding: "12px 14px", border: `1px solid ${p.border}`, marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement("div", null,
+                            React.createElement("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 4, background: p.accentLight, color: p.accent, fontWeight: 600, marginRight: 6 } }, h.topic),
+                            React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: p.dark } }, h.title),
+                            h.due && React.createElement("span", { style: { fontSize: 9, color: p.muted, marginLeft: 6 } },
+                                "Due: ",
+                                h.due)),
+                        React.createElement("div", { style: { display: "flex", gap: 3 } },
+                            React.createElement("button", { onClick: () => moveItem("homework", h.id, -1), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted } }, "\u2191"),
+                            React.createElement("button", { onClick: () => moveItem("homework", h.id, 1), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted } }, "\u2193"),
+                            React.createElement("button", { onClick: () => duplicateItem("homework", h.id), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted } }, "\uD83D\uDCCB"),
+                            React.createElement("button", { onClick: () => deleteItem("homework", h.id), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.danger}30`, background: p.danger + "08", fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.danger } }, "\uD83D\uDDD1\uFE0F")))))))),
+            cmsTab === "quizzes" && (React.createElement("div", null,
+                React.createElement("div", { style: { background: p.card, borderRadius: 12, padding: "20px", border: `1px solid ${p.border}`, marginBottom: 14 } },
+                    React.createElement("h3", { style: { fontSize: 14, fontWeight: 600, color: p.dark, margin: "0 0 12px", fontFamily: sans } }, "Create Custom Quiz"),
+                    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 8 } },
+                        React.createElement("input", { className: "si", value: quizForm.title, onChange: e => setQuizForm({ ...quizForm, title: e.target.value }), placeholder: "Quiz title", style: { flex: 1 } }),
+                        React.createElement("select", { className: "si", value: quizForm.topic, onChange: e => setQuizForm({ ...quizForm, topic: e.target.value }), style: { width: 80 } }, ["TA1", "TA2", "TA3", "TA4", "TA5", "TA6", "Mixed"].map(t => React.createElement("option", { key: t, value: t }, t))),
+                        React.createElement("select", { className: "si", value: quizForm.quizType, onChange: e => setQuizForm({ ...quizForm, quizType: e.target.value }), style: { width: 120 } },
+                            React.createElement("option", { value: "tf" }, "True/False"),
+                            React.createElement("option", { value: "mc" }, "Multiple Choice"))),
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: p.dark, margin: "0 0 6px" } }, "Questions:"),
+                    quizForm.questions.map((q, i) => (React.createElement("div", { key: i, style: { padding: "10px", background: p.warm, borderRadius: 8, marginBottom: 6 } },
+                        React.createElement("input", { className: "si", value: q.q, onChange: e => { const qs = [...quizForm.questions]; qs[i] = { ...qs[i], q: e.target.value }; setQuizForm({ ...quizForm, questions: qs }); }, placeholder: `Question ${i + 1}`, style: { marginBottom: 4 } }),
+                        quizForm.quizType === "tf" ? (React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 4 } },
+                            React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: p.dark } },
+                                React.createElement("input", { type: "radio", checked: q.a === true, onChange: () => { const qs = [...quizForm.questions]; qs[i] = { ...qs[i], a: true }; setQuizForm({ ...quizForm, questions: qs }); } }),
+                                " True"),
+                            React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: p.dark } },
+                                React.createElement("input", { type: "radio", checked: q.a === false, onChange: () => { const qs = [...quizForm.questions]; qs[i] = { ...qs[i], a: false }; setQuizForm({ ...quizForm, questions: qs }); } }),
+                                " False"))) : (React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 4 } }, (q.opts || ["", "", "", ""]).map((o, oi) => (React.createElement("div", { key: oi, style: { display: "flex", gap: 4, alignItems: "center" } },
+                            React.createElement("input", { type: "radio", name: `mc${i}`, checked: (q.ans || 0) === oi, onChange: () => { const qs = [...quizForm.questions]; qs[i] = { ...qs[i], ans: oi }; setQuizForm({ ...quizForm, questions: qs }); } }),
+                            React.createElement("input", { className: "si", value: o, onChange: e => { const qs = [...quizForm.questions]; const opts = [...(qs[i].opts || ["", "", "", ""])]; opts[oi] = e.target.value; qs[i] = { ...qs[i], opts }; setQuizForm({ ...quizForm, questions: qs }); }, placeholder: `Option ${String.fromCharCode(65 + oi)}`, style: { flex: 1, padding: "6px 8px", fontSize: 11 } })))))),
+                        React.createElement("input", { className: "si", value: q.explain || "", onChange: e => { const qs = [...quizForm.questions]; qs[i] = { ...qs[i], explain: e.target.value }; setQuizForm({ ...quizForm, questions: qs }); }, placeholder: "Explanation (shown after answering)", style: { fontSize: 11 } }),
+                        quizForm.questions.length > 1 && React.createElement("button", { onClick: () => setQuizForm({ ...quizForm, questions: quizForm.questions.filter((_, j) => j !== i) }), style: { marginTop: 4, padding: "3px 8px", borderRadius: 4, border: `1px solid ${p.danger}30`, background: p.danger + "08", fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.danger } }, "Remove")))),
+                    React.createElement("button", { onClick: () => setQuizForm({ ...quizForm, questions: [...quizForm.questions, quizForm.quizType === "tf" ? { q: "", a: true, explain: "" } : { q: "", opts: ["", "", "", ""], ans: 0, explain: "" }] }), style: { padding: "4px 10px", borderRadius: 6, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted, marginBottom: 10 } }, "+ Add Question"),
+                    React.createElement("div", null,
+                        React.createElement("button", { className: "btn-p", onClick: addQuiz, style: { fontSize: 12 } }, "\u2705 Create Quiz"))),
+                (customContent.quizzes || []).length > 0 && React.createElement("div", null,
+                    React.createElement("h3", { style: { fontSize: 13, fontWeight: 600, color: p.dark, margin: "0 0 8px", fontFamily: sans } },
+                        "Your Custom Quizzes (",
+                        (customContent.quizzes || []).length,
+                        ")"),
+                    (customContent.quizzes || []).map(q => (React.createElement("div", { key: q.id, style: { background: p.card, borderRadius: 8, padding: "12px 14px", border: `1px solid ${p.border}`, marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement("div", null,
+                            React.createElement("span", { style: { fontSize: 9, padding: "2px 6px", borderRadius: 4, background: p.accentLight, color: p.accent, fontWeight: 600, marginRight: 6 } }, q.topic),
+                            React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: p.dark } }, q.title),
+                            React.createElement("span", { style: { fontSize: 9, color: p.muted, marginLeft: 6 } },
+                                q.questions.length,
+                                " questions \u00B7 ",
+                                q.quizType === "tf" ? "True/False" : "MCQ")),
+                        React.createElement("div", { style: { display: "flex", gap: 3 } },
+                            React.createElement("button", { onClick: () => duplicateItem("quizzes", q.id), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.border}`, background: p.warm, fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.muted } }, "\uD83D\uDCCB"),
+                            React.createElement("button", { onClick: () => deleteItem("quizzes", q.id), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.danger}30`, background: p.danger + "08", fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.danger } }, "\uD83D\uDDD1\uFE0F")))))))),
+            cmsTab === "announces" && (React.createElement("div", null,
+                React.createElement("div", { style: { background: p.card, borderRadius: 12, padding: "20px", border: `1px solid ${p.border}`, marginBottom: 14 } },
+                    React.createElement("h3", { style: { fontSize: 14, fontWeight: 600, color: p.dark, margin: "0 0 12px", fontFamily: sans } }, "Post Announcement"),
+                    React.createElement("input", { className: "si", value: announceForm.title, onChange: e => setAnnounceForm({ ...announceForm, title: e.target.value }), placeholder: "Announcement title", style: { marginBottom: 6 } }),
+                    React.createElement("textarea", { className: "si", value: announceForm.body, onChange: e => setAnnounceForm({ ...announceForm, body: e.target.value }), placeholder: "Message to students...", rows: 3, style: { resize: "vertical", marginBottom: 6 } }),
+                    React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: p.dark, marginBottom: 10, cursor: "pointer" } },
+                        React.createElement("input", { type: "checkbox", checked: announceForm.pinned, onChange: e => setAnnounceForm({ ...announceForm, pinned: e.target.checked }) }),
+                        "\uD83D\uDCCC Pin this announcement"),
+                    React.createElement("button", { className: "btn-p", onClick: addAnnounce, style: { fontSize: 12 } }, "\uD83D\uDCE2 Post Announcement")),
+                (customContent.announcements || []).length > 0 && React.createElement("div", null,
+                    React.createElement("h3", { style: { fontSize: 13, fontWeight: 600, color: p.dark, margin: "0 0 8px", fontFamily: sans } },
+                        "Posted Announcements (",
+                        (customContent.announcements || []).length,
+                        ")"),
+                    (customContent.announcements || []).map(a => (React.createElement("div", { key: a.id, style: { background: p.card, borderRadius: 8, padding: "12px 14px", border: `1px solid ${a.pinned ? p.accent + "40" : p.border}`, marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" } },
+                        React.createElement("div", null,
+                            a.pinned && React.createElement("span", { style: { fontSize: 9, background: p.accentLight, color: p.accent, padding: "2px 6px", borderRadius: 4, fontWeight: 600, marginRight: 6 } }, "\uD83D\uDCCC"),
+                            React.createElement("span", { style: { fontSize: 12, fontWeight: 600, color: p.dark } }, a.title),
+                            React.createElement("span", { style: { fontSize: 9, color: p.muted, marginLeft: 6 } }, a.date)),
+                        React.createElement("button", { onClick: () => deleteItem("announcements", a.id), style: { padding: "3px 6px", borderRadius: 4, border: `1px solid ${p.danger}30`, background: p.danger + "08", fontSize: 10, cursor: "pointer", fontFamily: sans, color: p.danger } }, "\uD83D\uDDD1\uFE0F"))))))))),
         adminTab === "assignments" && (React.createElement("div", { style: { background: p.card, borderRadius: 12, padding: "20px", border: `1px solid ${p.border}`, marginBottom: 16 } },
             React.createElement("h3", { style: { fontSize: 13, fontWeight: 600, color: p.dark, margin: "0 0 10px", fontFamily: sans } }, "New Assignment"),
             React.createElement("input", { className: "si", value: na.title, onChange: e => setNa({ ...na, title: e.target.value }), placeholder: "Title", style: { marginBottom: 5 } }),
@@ -2966,13 +3202,21 @@ catch (e) {
     console.warn("Supabase init failed", e);
 }
 async function saveUser(username, userData) {
-    if (!_db)
-        return;
+    if (!_db) {
+        console.error("No database connection");
+        return false;
+    }
     try {
-        await _db.from("users").upsert({ username: username, data: userData, updated_at: new Date().toISOString() });
+        var res = await _db.from("users").upsert({ username: username, data: userData, updated_at: new Date().toISOString() });
+        if (res.error) {
+            console.error("Save error:", res.error.message);
+            return false;
+        }
+        return true;
     }
     catch (e) {
-        console.error("Save error", e);
+        console.error("Save exception:", e);
+        return false;
     }
 }
 async function loadUser(username) {
@@ -3051,6 +3295,7 @@ function App() {
     const [showOnboarding, setShowOnboarding] = useState(false);
     const [dailyXpClaimed, setDailyXpClaimed] = useState(false);
     const [achievePopup, setAchievePopup] = useState(null);
+    const [customContent, setCustomContent] = useState({ lessons: [], homework: [], quizzes: [], announcements: [] });
     const p = dm ? themes.dark : themes.light;
     // ─── Update streak on activity ──────────────────────────────────────────
     const updateStreak = useCallback(() => {
@@ -3085,6 +3330,17 @@ function App() {
                 setAnnouncements(sharedAnn);
             const lb = await loadLeaderboard();
             setLbData(lb);
+            // Load custom content
+            if (_db) {
+                try {
+                    var ccRes = await _db.from("shared").select("value").eq("key", "custom_content").single();
+                    if (!ccRes.error && ccRes.data) {
+                        var cc = typeof ccRes.data.value === "string" ? JSON.parse(ccRes.data.value) : ccRes.data.value;
+                        setCustomContent(cc || { lessons: [], homework: [], quizzes: [], announcements: [] });
+                    }
+                }
+                catch (e) { }
+            }
             // Show onboarding for new students
             if (!saved || (saved.done || []).length === 0) {
                 if (u.role === "student")
@@ -3248,7 +3504,7 @@ function App() {
         calendar: React.createElement(CalendarView, { p: p, assignments: assignments }),
         leaderboard: React.createElement(LeaderboardView, { p: p, xp: xp, badges: badges, lbData: lbData, username: user.username }),
         announcements: React.createElement(AnnouncementsView, { p: p, announcements: announcements, setAnnouncements: setAnnouncements, user: user }),
-        admin: React.createElement(AdminPanel, { p: p, assignments: assignments, setAssignments: setAssignments, lbData: lbData }),
+        admin: React.createElement(AdminPanel, { p: p, assignments: assignments, setAssignments: setAssignments, lbData: lbData, customContent: customContent, setCustomContent: setCustomContent }),
     };
     return (React.createElement("div", { style: { display: "flex", minHeight: "100vh", background: p.bg, fontFamily: sans } },
         React.createElement("style", null, css),
